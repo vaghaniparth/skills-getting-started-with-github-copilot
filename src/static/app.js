@@ -17,15 +17,20 @@ document.addEventListener("DOMContentLoaded", () => {
       // Extract unique categories
       const categories = [...new Set(Object.values(allActivities).map(a => a.category))];
       
-      // Add event listener to "All Activities" button
+      // Clear existing category buttons except "All Activities"
       const allActivitiesBtn = categoryFilters.querySelector('[data-category="all"]');
+      categoryFilters.innerHTML = '';
+      
+      // Re-add "All Activities" button
       if (allActivitiesBtn) {
+        categoryFilters.appendChild(allActivitiesBtn);
         allActivitiesBtn.addEventListener("click", () => filterActivities("all"));
       }
       
       // Create category filter buttons
       categories.forEach(category => {
         const btn = document.createElement("button");
+        btn.type = "button";
         btn.className = "filter-btn";
         btn.dataset.category = category.toLowerCase();
         btn.textContent = category;
