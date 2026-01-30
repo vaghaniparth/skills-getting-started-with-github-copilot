@@ -3,42 +3,112 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const categoryFilters = document.getElementById("category-filters");
+  
+  let allActivities = {};
+  let currentFilter = "all";
 
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
       const response = await fetch("/activities");
-      const activities = await response.json();
+      allActivities = await response.json();
 
-      // Clear loading message
-      activitiesList.innerHTML = "";
-
-      // Populate activities list
-      Object.entries(activities).forEach(([name, details]) => {
-        const activityCard = document.createElement("div");
-        activityCard.className = "activity-card";
-
-        const spotsLeft = details.max_participants - details.participants.length;
-
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-        `;
-
-        activitiesList.appendChild(activityCard);
-
-        // Add option to select dropdown
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        activitySelect.appendChild(option);
+      // Extract unique categories
+      const categories = [...new Set(Object.values(allActivities).map(a => a.category))];
+      
+      // Add event listener to "All Activities" button
+      const allActivitiesBtn = categoryFilters.querySelector('[data-category="all"]');
+      if (allActivitiesBtn) {
+        allActivitiesBtn.addEventListener("click", () => filterActivities("all"));
+      }
+      
+      // Create category filter buttons
+      categories.forEach(category => {
+        const btn = document.createElement("button");
+        btn.className = "filter-btn";
+        btn.dataset.category = category.toLowerCase();
+        btn.textContent = category;
+        btn.addEventListener("click", () => filterActivities(category.toLowerCase()));
+        categoryFilters.appendChild(btn);
       });
+
+      // Display all activities initially
+      displayActivities();
+      populateActivitySelect();
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
     }
+  }
+
+  // Function to display activities based on current filter
+  function displayActivities() {
+    // Clear activities list
+    activitiesList.innerHTML = "";
+
+    // Filter and display activities
+    Object.entries(allActivities).forEach(([name, details]) => {
+      const category = details.category.toLowerCase();
+      
+      // Apply filter
+      if (currentFilter !== "all" && category !== currentFilter) {
+        return;
+      }
+
+      const activityCard = document.createElement("div");
+      activityCard.className = "activity-card";
+      activityCard.dataset.category = category;
+
+      const spotsLeft = details.max_participants - details.participants.length;
+      const availabilityClass = spotsLeft === 0 ? "full" : spotsLeft < 5 ? "limited" : "";
+      const availabilityText = spotsLeft === 0 ? "Full" : `${spotsLeft} spots left`;
+
+      activityCard.innerHTML = `
+        <h4>
+          ${name}
+          <span class="category-badge category-${category}">${details.category}</span>
+        </h4>
+        <p>${details.description}</p>
+        <p><strong>Schedule:</strong> ${details.schedule}</p>
+        <p class="availability ${availabilityClass}"><strong>Availability:</strong> ${availabilityText}</p>
+      `;
+
+      activitiesList.appendChild(activityCard);
+    });
+
+    // Show message if no activities match filter
+    if (activitiesList.children.length === 0) {
+      activitiesList.innerHTML = "<p>No activities found in this category.</p>";
+    }
+  }
+
+  // Function to populate activity select dropdown
+  function populateActivitySelect() {
+    // Clear existing options except the first one
+    activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+    
+    Object.entries(allActivities).forEach(([name, details]) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = `${name} (${details.category})`;
+      activitySelect.appendChild(option);
+    });
+  }
+
+  // Function to filter activities by category
+  function filterActivities(category) {
+    currentFilter = category;
+    
+    // Update active button
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+      btn.classList.remove("active");
+      if (btn.dataset.category === category) {
+        btn.classList.add("active");
+      }
+    });
+
+    displayActivities();
   }
 
   // Handle form submission
@@ -60,11 +130,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (response.ok) {
         messageDiv.textContent = result.message;
-        messageDiv.className = "success";
+        messageDiv.className = "success message";
         signupForm.reset();
+        
+        // Refresh activities to show updated availability
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        messageDiv.className = "error message";
       }
 
       messageDiv.classList.remove("hidden");
@@ -75,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 5000);
     } catch (error) {
       messageDiv.textContent = "Failed to sign up. Please try again.";
-      messageDiv.className = "error";
+      messageDiv.className = "error message";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
     }
